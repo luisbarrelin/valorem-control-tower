@@ -1036,7 +1036,7 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
       })();
       return inFlight;
     }
-    function pause() { active = false; revision++; onStatus({ state: 'manual' }); }
+    function pause() { active = false; revision++; fingerprint = ''; onStatus({ state: 'manual' }); }
     const interval = setInterval(() => { if (!document.hidden) refresh(); }, 300000);
     const resume = () => { if (!document.hidden && Date.now() - lastAttempt > 60000) refresh(); };
     document.addEventListener('visibilitychange', resume);
