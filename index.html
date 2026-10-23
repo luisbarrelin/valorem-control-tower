@@ -402,6 +402,11 @@ body { font-family:"Segoe UI",Arial,sans-serif; font-size:14px; }
 html[data-theme="dark"] .command-hero {background:var(--surface)}
 html[data-theme="dark"] .stage-separation {--stage-color:#91bea2}
 html[data-theme="dark"] .stage-released {--stage-color:#8ad0a5}
+.command-brand .official-brand { flex:0 0 auto; display:flex; align-items:center; padding:0; }
+.official-logo { display:block; width:220px; max-width:100%; height:auto; object-fit:contain; }
+html[data-theme="dark"] .command-brand .official-brand { background:#fff; border-radius:3px; }
+@media(max-width:760px) { .official-logo {width:180px;} .command-brand {gap:16px;} }
+@media(max-width:440px) { .official-logo {width:165px;} .command-brand {gap:12px;} .product-wordmark {padding-left:12px;max-width:125px;} }
 
 </style>
 </head>
@@ -409,7 +414,7 @@ html[data-theme="dark"] .stage-released {--stage-color:#8ad0a5}
  <a href="#mainContent" class="skip-link">Pular para o conteúdo principal</a>
  <noscript><div class="noscript">Habilite o JavaScript para visualizar o painel e importar o Excel.</div></noscript>
  <input id="fileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
- <div class="command-brand"><a class="brand-primary" href="#mainContent" aria-label="Valorem — início"><span class="brand-symbol"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19C-1 3 15 4 21 3c0 12-6 18-16 16ZM5 19 16 8"/></svg></span><span><strong>VALOREM</strong><small>AGRONEGÓCIOS</small></span></a><span class="product-wordmark">CONTROL TOWER <b>/</b> CORTEVA</span><span class="edition">OPERAÇÕES · SEMENTES</span></div>
+ <div class="command-brand"><a class="brand-primary official-brand" href="#mainContent" aria-label="Valorem — início"><img class="official-logo" src="valorem-logo.png" width="2169" height="725" alt="Valorem — Mais qualidade, mais valor." decoding="async" fetchpriority="high"></a><span class="product-wordmark">CONTROL TOWER <b>/</b> CORTEVA</span><span class="edition">OPERAÇÕES · SEMENTES</span></div>
  <aside class="sidebar" id="sidebar" aria-label="Navegação principal"><nav class="main-navigation">
    <button type="button" class="nav-item is-active" data-view="operation" aria-pressed="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Visão operacional</span></button>
    <button type="button" class="nav-item" data-view="analysis" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h17M8 15v-4m5 4V7m5 8V4"/></svg><span>Análise gerencial</span></button>
