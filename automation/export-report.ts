@@ -4,6 +4,10 @@ function main(workbook: ExcelScript.Workbook, modifiedAt: string = ''): string {
   if (!sheet) throw new Error('A aba Report não foi encontrada.');
   const range = sheet.getUsedRange(true);
   if (!range) throw new Error('A aba Report está vazia.');
+  // Resolve Excel calls before array callbacks: the cloud runner cannot rewrite
+  // findIndex callbacks that access the workbook into async callbacks.
+  const startRow = range.getRowIndex();
+  const startColumn = range.getColumnIndex();
   const values = range.getValues();
   const normalize = (value: string | number | boolean): string => String(value ?? '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
@@ -28,7 +32,7 @@ function main(workbook: ExcelScript.Workbook, modifiedAt: string = ''): string {
   const fields = Object.keys(definitions);
   const columns = fields.map((field) => {
     const candidates = definitions[field].map((value) => normalize(value));
-    if (field === 'statusAux') return headers.findIndex((cell, index) => cell === 'STATUS' && index + range.getColumnIndex() > 10);
+    if (field === 'statusAux') return headers.findIndex((cell, index) => cell === 'STATUS' && index + startColumn > 10);
     let index = headers.findIndex((cell) => candidates.includes(cell));
     if (index < 0) index = headers.findIndex((cell) => cell !== '' && candidates.some((candidate) => cell.includes(candidate) || candidate.includes(cell)));
     return index;
@@ -44,7 +48,7 @@ function main(workbook: ExcelScript.Workbook, modifiedAt: string = ''): string {
     const load = row[columns[fields.indexOf('load')]];
     const scheduled = row[columns[fields.indexOf('scheduled')]];
     if ((load === '' || load === undefined) && (scheduled === '' || scheduled === undefined)) continue;
-    const encoded: (number | boolean | null | number[])[] = [range.getRowIndex() + index + 1];
+    const encoded: (number | boolean | null | number[])[] = [startRow + index + 1];
     columns.forEach((column) => {
       const value = column < 0 ? '' : row[column];
       if (value === '' || value === undefined || /^#(REF!|DIV\/0!|VALUE!|NAME\?|N\/A|NUM!|NULL!|SPILL!|CALC!)/.test(String(value))) {
