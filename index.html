@@ -409,7 +409,7 @@ html[data-theme="dark"] .command-brand .official-brand { background:#fff; border
 @media(max-width:440px) { .official-logo {width:165px;} .command-brand {gap:12px;} .product-wordmark {padding-left:12px;max-width:125px;} }
 
 </style>
-</head>
+<style>.sync-status{display:block;margin:-8px 0 20px;color:var(--muted,#66736d);font-size:12px;line-height:1.6;overflow-wrap:anywhere}.sync-status[data-state="offline"]{font-weight:500}</style></head>
 <body data-view="operation">
  <a href="#mainContent" class="skip-link">Pular para o conteúdo principal</a>
  <noscript><div class="noscript">Habilite o JavaScript para visualizar o painel e importar o Excel.</div></noscript>
@@ -482,7 +482,7 @@ html[data-theme="dark"] .command-brand .official-brand { background:#fff; border
       </section>
 
 
-   <section id="emptyState" class="empty-state" hidden><div class="empty-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div><h2>Nenhuma carga para exibir</h2><p>Na primeira visita, use Atualizar base para importar o Excel. Se já importou, revise o período e os filtros.</p><button type="button" class="secondary-button" id="emptyReset">Limpar filtros</button></section>
+   <section id="emptyState" class="empty-state" hidden><div class="empty-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div><h2>Nenhuma carga para exibir</h2><p>A base compartilhada será carregada automaticamente. Se necessário, importe um Excel em Informações da base.</p><button type="button" class="secondary-button" id="emptyReset">Limpar filtros</button></section>
   </main>
   <footer class="app-footer"><span>VALOREM <span class="footer-separator">/</span> Precisão em cada movimento.</span><span>Control Tower · Corteva / Vylor</span></footer>
  </div>
@@ -512,7 +512,8 @@ html[data-theme="dark"] .command-brand .official-brand { background:#fff; border
 
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="false"></div>
 
-  <script>
+  <script>window.DASHBOARD_REMOTE_SOURCE={url:"./data/report.json"};</script>
+<script>
 window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',sheet:'Report',importedAt:null,records:[]};
 </script>
   <script>
@@ -970,6 +971,78 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
   }
 
   window.DashboardStore = { getDataset, setDataset, clearDataset };
+})();
+
+</script>
+  <script>
+(function () {
+  'use strict';
+  const fields = ['row', 'scheduled', 'arrival', 'operation', 'quantity', 'pallets', 'load', 'driver', 'plate', 'trailer', 'carrier', 'vehicleStatus', 'loadStatus', 'billingStatus', 'observation', 'operationEnd', 'statusAux', 'indicator', 'loadingStart', 'loadingEnd', 'loadingTime', 'palletObs'];
+
+  function validate(value) {
+    if (value?.version !== 1 || value.sheet !== 'Report' || !Array.isArray(value.records) || !value.records.length || value.records.length > 10000 || !Number.isFinite(Date.parse(value.importedAt))) {
+      throw new Error('A base online recebida não é um Report válido.');
+    }
+    for (const record of value.records) {
+      if (!record || typeof record !== 'object' || Array.isArray(record) || !('scheduled' in record) || !('load' in record) || !('loadStatus' in record)) throw new Error('A base online contém registros incompatíveis.');
+      for (const field of fields) {
+        const cell = record[field];
+        if (cell != null && !['string', 'number', 'boolean'].includes(typeof cell)) throw new Error('A base online contém células inválidas.');
+        if (typeof cell === 'number' && !Number.isFinite(cell)) throw new Error('A base online contém números inválidos.');
+      }
+    }
+    return { version: 1, sourceFile: String(value.sourceFile || 'Report do SharePoint'), sheet: 'Report', importedAt: value.importedAt,
+      sourceModifiedAt: value.sourceModifiedAt || value.importedAt, syncOrigin: 'sharepoint',
+      records: value.records.map((record) => Object.fromEntries(fields.map((field) => [field, record[field] ?? null]))) };
+  }
+
+  function create({ url, onDataset, onStatus, initial }) {
+    let active = true, inFlight, revision = 0, lastAttempt = 0;
+    let current = initial?.syncOrigin === 'sharepoint' ? initial : null;
+    let fingerprint = current ? JSON.stringify(current) : '';
+    async function refresh({ announce = false, force = false } = {}) {
+      const wasPaused = !active;
+      if (force) active = true;
+      if (!active) return;
+      if (inFlight) {
+        const result = await inFlight;
+        return force && wasPaused ? refresh({ announce, force }) : result;
+      }
+      const generation = revision;
+      lastAttempt = Date.now();
+      onStatus({ state: 'loading', announce });
+      inFlight = (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const response = await fetch(url, { cache: 'no-store', credentials: 'omit', signal: controller.signal });
+          if (!response.ok) throw new Error(response.status === 404 ? 'A primeira sincronização ainda não foi publicada.' : `A base online respondeu com erro ${response.status}.`);
+          const text = await response.text();
+          if (text.length > 2000000) throw new Error('A base recebida excedeu o tamanho permitido.');
+          const dataset = validate(JSON.parse(text));
+          if (!active || generation !== revision) return;
+          if (current && Date.parse(dataset.importedAt) < Date.parse(current.importedAt)) throw new Error('O servidor retornou uma versão anterior. A base mais recente foi preservada.');
+          const nextFingerprint = JSON.stringify(dataset);
+          if (nextFingerprint !== fingerprint) {
+            await onDataset(dataset);
+            current = dataset;
+            fingerprint = nextFingerprint;
+          }
+          onStatus({ state: 'online', checkedAt: new Date(), dataset, announce });
+          return dataset;
+        } catch (error) {
+          if (active && generation === revision) onStatus({ state: 'offline', error: error.name === 'AbortError' ? 'A consulta à base excedeu 15 segundos.' : error.message, announce });
+        } finally { clearTimeout(timeout); inFlight = null; }
+      })();
+      return inFlight;
+    }
+    function pause() { active = false; revision++; onStatus({ state: 'manual' }); }
+    const interval = setInterval(() => { if (!document.hidden) refresh(); }, 300000);
+    const resume = () => { if (!document.hidden && Date.now() - lastAttempt > 60000) refresh(); };
+    document.addEventListener('visibilitychange', resume);
+    return { refresh, pause, dispose() { active = false; revision++; clearInterval(interval); document.removeEventListener('visibilitychange', resume); } };
+  }
+  window.RemoteDataset = { create, validate };
 })();
 
 </script>
@@ -2811,6 +2884,8 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
 
   let dashboard;
   let currentDataset;
+  let remoteSync;
+  const remoteConfig = window.DASHBOARD_REMOTE_SOURCE;
 
   const $ = (id) => document.getElementById(id);
 
@@ -2874,7 +2949,7 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
       importButton.disabled = busy;
       importButton.classList.toggle('is-busy', busy);
       const text = importButton.querySelector('[data-button-label]');
-      if (text) text.textContent = busy ? 'Processando...' : 'Atualizar base';
+      if (text) text.textContent = busy ? 'Processando...' : remoteConfig ? 'Sincronizar base' : 'Atualizar base';
     }
     if (dropOverlay) {
       dropOverlay.querySelector('[data-drop-label]').textContent = busy ? label : 'Solte o arquivo .xlsx para atualizar a base';
@@ -2912,6 +2987,7 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
     setImportBusy(true, `Lendo ${file.name}...`);
     try {
       const dataset = await XlsxReader.readReportFile(file);
+      remoteSync?.pause();
       await applyDataset(dataset, { persist: true, announce: true });
     } catch (error) {
       console.error(error);
@@ -2925,7 +3001,7 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
 
   function bindImport() {
     const fileInput = $('fileInput');
-    $('importButton')?.addEventListener('click', () => fileInput?.click());
+    $('importButton')?.addEventListener('click', () => remoteSync ? remoteSync.refresh({ announce: true, force: true }) : fileInput?.click());
     $('secondaryImportButton')?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', () => importFile(fileInput.files?.[0]));
 
@@ -2999,7 +3075,8 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
     });
 
     $('restoreInitial')?.addEventListener('click', async () => {
-      if (!confirm('Limpar a base importada neste navegador? Você poderá importar o Excel novamente.')) return;
+      if (!remoteConfig && !confirm('Limpar a base importada neste navegador? Você poderá importar o Excel novamente.')) return;
+      if (remoteSync) { await remoteSync.refresh({ announce: true, force: true }); return; }
       if (!window.INITIAL_DASHBOARD_DATA) return;
       await DashboardStore.clearDataset();
       await applyDataset(window.INITIAL_DASHBOARD_DATA, { persist: true, announce: false });
@@ -3038,6 +3115,35 @@ window.INITIAL_DASHBOARD_DATA={version:1,sourceFile:'Nenhum Excel importado',she
     await applyDataset(initial, { persist: !persisted && Boolean(window.INITIAL_DASHBOARD_DATA), announce: false });
 
     document.body.classList.add('app-ready');
+    if (remoteConfig?.url && window.RemoteDataset && location.protocol !== 'file:') {
+      const context = document.querySelector('.data-context strong');
+      const status = document.createElement('span');
+      status.id = 'syncStatus';
+      status.setAttribute('role', 'status');
+      status.className = 'sync-status';
+      document.querySelector('.data-context')?.insertAdjacentElement('afterend', status);
+      $('importButton').querySelector('[data-button-label]').textContent = 'Sincronizar base';
+      $('restoreInitial').textContent = 'Retomar base online';
+      remoteSync = RemoteDataset.create({ url: remoteConfig.url, initial,
+        onDataset: (dataset) => applyDataset(dataset, { persist: true, announce: false }),
+        onStatus: ({ state, dataset, checkedAt, error, announce }) => {
+          const label = $('importButton').querySelector('[data-button-label]');
+          if (label) label.textContent = state === 'loading' ? 'Sincronizando…' : 'Sincronizar base';
+          $('importButton').setAttribute('aria-busy', String(state === 'loading'));
+          if (context) context.textContent = ({ loading: 'Consultando base', online: 'Base compartilhada', offline: 'Consulta indisponível', manual: 'Importação manual' })[state];
+          status.dataset.state = state;
+          if (state === 'online') {
+            status.textContent = `SharePoint · ${dataset.records.length} registros · consulta às ${checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Atualização automática a cada 5 minutos.`;
+            if (announce) toast('Base sincronizada', 'success', `${dataset.records.length} registros disponíveis.`);
+          } else if (state === 'offline') {
+            status.textContent = `${error} ${currentDataset?.records?.length ? 'Exibindo a última base disponível; uma nova consulta será feita automaticamente.' : 'Aguardando uma base válida. Você também pode importar um Excel em Informações da base.'}`;
+            if (announce) toast('Sincronização indisponível', 'error', error);
+          } else if (state === 'manual') status.textContent = 'Excel importado neste navegador. Use Sincronizar base para retomar os dados compartilhados.';
+          else status.textContent = 'Consultando a última publicação do SharePoint…';
+        }
+      });
+      remoteSync.refresh();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
