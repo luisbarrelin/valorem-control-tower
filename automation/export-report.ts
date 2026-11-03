@@ -1,6 +1,6 @@
 // Office Script: reads Report and returns the dashboard fields. Never changes cells.
 function main(workbook: ExcelScript.Workbook, modifiedAt: string = ''): string {
-  const sheet = workbook.getWorksheet('Report');
+  const sheet = workbook.getWorksheet('Report') || workbook.getWorksheet('Report 26-26');
   if (!sheet) throw new Error('A aba Report não foi encontrada.');
   const range = sheet.getUsedRange(true);
   if (!range) throw new Error('A aba Report está vazia.');
